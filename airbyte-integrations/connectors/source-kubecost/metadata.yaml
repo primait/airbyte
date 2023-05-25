@@ -1,0 +1,17 @@
+data:
+  registries:
+    oss:
+      enabled: false
+  connectorSubtype: api
+  connectorType: source
+  definitionId: 9dd432d2-5389-4068-a7b4-e31217e65a58
+  dockerImageTag: 0.1.0
+  dockerRepository: airbyte/source-kubecost
+  githubIssueLabel: source-kubecost
+  icon: kubecost.svg
+  license: MIT
+  name: Kubecost
+  releaseDate: TODO
+  releaseStage: alpha
+  supportUrl: https://docs.airbyte.com/integrations/sources/kubecost
+metadataSpecVersion: "1.0"
