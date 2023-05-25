@@ -13,10 +13,12 @@ import com.google.common.collect.Lists;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.source.kafka.KafkaStrategy;
+import io.airbyte.integrations.source.kafka.state.KafkaStateManager;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
 import io.airbyte.protocol.models.v0.AirbyteRecordMessage;
+import io.airbyte.protocol.models.v0.AirbyteStateMessage;
 import io.airbyte.protocol.models.v0.AirbyteStream;
 import io.airbyte.protocol.models.v0.CatalogHelpers;
 import io.airbyte.protocol.models.v0.SyncMode;
@@ -27,7 +29,16 @@ import io.confluent.kafka.serializers.KafkaAvroSerializerConfig;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,28 +53,32 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class AvroFormat extends AbstractFormat {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(AvroFormat.class);
-
+  private final Map<TopicPartition, Long> initialState;
+  private final KafkaStateManager manager;
   private KafkaConsumer<String, GenericRecord> consumer;
 
-  public AvroFormat(JsonNode jsonConfig) {
+  public AvroFormat(final JsonNode jsonConfig, final KafkaStateManager manager) {
     super(jsonConfig);
+    this.manager = manager;
+    this.initialState = manager.state();
   }
 
   @Override
   protected Map<String, Object> getKafkaConfig() {
-    Map<String, Object> props = super.getKafkaConfig();
+    final Map<String, Object> props = super.getKafkaConfig();
     final JsonNode avro_config = config.get("MessageFormat");
     props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
     props.put(SchemaRegistryClientConfig.BASIC_AUTH_CREDENTIALS_SOURCE, "USER_INFO");
-    props.put(SchemaRegistryClientConfig.USER_INFO_CONFIG,
-        String.format("%s:%s", avro_config.get("schema_registry_username").asText(), avro_config.get("schema_registry_password").asText()));
+    props.put(SchemaRegistryClientConfig.USER_INFO_CONFIG, String.format("%s:%s", avro_config.get("schema_registry_username")
+        .asText(), avro_config.get("schema_registry_password").asText()));
     props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, avro_config.get("schema_registry_url").asText());
-    props.put(KafkaAvroSerializerConfig.VALUE_SUBJECT_NAME_STRATEGY,
-        KafkaStrategy.getStrategyName(avro_config.get("deserialization_strategy").asText()));
+    props.put(KafkaAvroSerializerConfig.VALUE_SUBJECT_NAME_STRATEGY, KafkaStrategy.getStrategyName(avro_config.get("deserialization_strategy")
+        .asText()));
     return props;
   }
 
@@ -72,7 +87,7 @@ public class AvroFormat extends AbstractFormat {
     if (consumer != null) {
       return consumer;
     }
-    Map<String, Object> filteredProps = getKafkaConfig();
+    final Map<String, Object> filteredProps = getKafkaConfig();
     consumer = new KafkaConsumer<>(filteredProps);
 
     final JsonNode subscription = config.get("subscription");
@@ -80,8 +95,10 @@ public class AvroFormat extends AbstractFormat {
     switch (subscription.get("subscription_type").asText()) {
       case "subscribe" -> {
         final String topicPattern = subscription.get("topic_pattern").asText();
-        consumer.subscribe(Pattern.compile(topicPattern));
-        topicsToSubscribe = consumer.listTopics().keySet().stream()
+        consumer.subscribe(Pattern.compile(topicPattern), new KafkaConsumerRebalancerListener<>(consumer, this.initialState));
+        topicsToSubscribe = consumer.listTopics()
+            .keySet()
+            .stream()
             .filter(topic -> topic.matches(topicPattern))
             .collect(Collectors.toSet());
         LOGGER.info("Topic list: {}", topicsToSubscribe);
@@ -97,6 +114,8 @@ public class AvroFormat extends AbstractFormat {
         }).collect(Collectors.toList());
         LOGGER.info("Topic-partition list: {}", topicPartitionList);
         consumer.assign(topicPartitionList);
+        topicPartitionList.forEach(partition -> Optional.ofNullable(this.initialState.get(partition))
+            .ifPresent(offset -> consumer.seek(partition, offset)));
       }
     }
     return consumer;
@@ -131,9 +150,9 @@ public class AvroFormat extends AbstractFormat {
   @Override
   public List<AirbyteStream> getStreams() {
     final Set<String> topicsToSubscribe = getTopicsToSubscribe();
-    final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
-        .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
-        .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL)))
+    final List<AirbyteStream> streams = topicsToSubscribe.stream()
+        .map(topic -> CatalogHelpers.createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
+            .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL)))
         .collect(Collectors.toList());
     return streams;
   }
@@ -146,24 +165,26 @@ public class AvroFormat extends AbstractFormat {
     final int retry = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
     final int polling_time = config.has("polling_time") ? config.get("polling_time").intValue() : 100;
     final int max_records = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
-    AtomicInteger record_count = new AtomicInteger();
+    final AtomicInteger record_count = new AtomicInteger();
     final Map<String, Integer> poll_lookup = new HashMap<>();
-    getTopicsToSubscribe().forEach(topic -> poll_lookup.put(topic, 0));
+
+    LOGGER.info("::: Polling time " + polling_time);
+
     while (true) {
       final ConsumerRecords<String, GenericRecord> consumerRecords = consumer.poll(Duration.of(polling_time, ChronoUnit.MILLIS));
+
+      LOGGER.info("::: Consumed records size " + consumerRecords.count());
+
       consumerRecords.forEach(record -> {
         record_count.getAndIncrement();
         recordsList.add(record);
       });
-      consumer.commitAsync();
 
       if (consumerRecords.count() == 0) {
-        consumer.assignment().stream().map(record -> record.topic()).distinct().forEach(
-            topic -> {
-              poll_lookup.put(topic, poll_lookup.get(topic) + 1);
-            });
-        boolean is_complete = poll_lookup.entrySet().stream().allMatch(
-            e -> e.getValue() > retry);
+        consumer.assignment().stream().map(TopicPartition::topic).distinct().forEach(topic -> {
+          poll_lookup.compute(topic, (key, value) -> value != null ? value + 1 : 0);
+        });
+        final boolean is_complete = poll_lookup.entrySet().stream().allMatch(e -> e.getValue() > retry);
         if (is_complete) {
           LOGGER.info("There is no new data in the queue!!");
           break;
@@ -173,45 +194,59 @@ public class AvroFormat extends AbstractFormat {
         break;
       }
     }
+
+    final var updates =
+        consumer.assignment()
+            .stream()
+            .map(it -> Map.entry(it, consumer.position(it)))
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+
+    this.manager.update(updates);
+
     consumer.close();
+
     final Iterator<ConsumerRecord<String, GenericRecord>> iterator = recordsList.iterator();
+    final Iterator<AirbyteStateMessage> stateMessages = manager.serialise().iterator();
+
     return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
 
       @Override
       protected AirbyteMessage computeNext() {
         if (iterator.hasNext()) {
           final ConsumerRecord<String, GenericRecord> record = iterator.next();
-          GenericRecord avro_data = record.value();
-          ObjectMapper mapper = new ObjectMapper();
-          String namespace = avro_data.getSchema().getNamespace();
-          String name = avro_data.getSchema().getName();
-          JsonNode output;
+          final GenericRecord avro_data = record.value();
+          final ObjectMapper mapper = new ObjectMapper();
+          final String namespace = avro_data.getSchema().getNamespace();
+          final String name = avro_data.getSchema().getName();
+          final JsonNode output;
           try {
             // Todo dynamic namespace is not supported now hence, adding avro schema name in the message
             if (StringUtils.isNoneEmpty(namespace) && StringUtils.isNoneEmpty(name)) {
-              String newString = String.format("{\"avro_schema\": \"%s\",\"name\":\"%s\"}", namespace, name);
-              JsonNode newNode = mapper.readTree(newString);
+              final String newString = String.format("{\"avro_schema\": \"%s\",\"name\":\"%s\"}", namespace, name);
+              final JsonNode newNode = mapper.readTree(newString);
               output = mapper.readTree(avro_data.toString());
               ((ObjectNode) output).set("_namespace_", newNode);
             } else {
               output = mapper.readTree(avro_data.toString());
             }
-          } catch (JsonProcessingException e) {
+          } catch (final JsonProcessingException e) {
             LOGGER.error("Exception whilst reading avro data from stream", e);
             throw new RuntimeException(e);
           }
-          return new AirbyteMessage()
-              .withType(AirbyteMessage.Type.RECORD)
-              .withRecord(new AirbyteRecordMessage()
-                  .withStream(record.topic())
+          return new AirbyteMessage().withType(AirbyteMessage.Type.RECORD)
+              .withRecord(new AirbyteRecordMessage().withStream(record.topic())
                   .withEmittedAt(Instant.now().toEpochMilli())
                   .withData(output));
         }
 
+        if (recordsList.size() != 0 && stateMessages.hasNext()) {
+          return new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(stateMessages.next());
+        }
+
         return endOfData();
       }
-
     });
+
   }
 
 }

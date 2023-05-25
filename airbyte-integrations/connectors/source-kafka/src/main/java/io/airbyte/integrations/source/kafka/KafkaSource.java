@@ -10,6 +10,7 @@ import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.source.kafka.format.KafkaFormat;
+import io.airbyte.integrations.source.kafka.state.KafkaStateManager;
 import io.airbyte.protocol.models.v0.AirbyteCatalog;
 import io.airbyte.protocol.models.v0.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.v0.AirbyteConnectionStatus.Status;
@@ -24,11 +25,13 @@ public class KafkaSource extends BaseConnector implements Source {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
 
-  public KafkaSource() {}
+  public KafkaSource() {
+  }
 
   @Override
   public AirbyteConnectionStatus check(final JsonNode config) {
-    KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config);
+    final var stateManager = new KafkaStateManager(null);
+    final KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config, stateManager);
     if (kafkaFormat.isAccessible()) {
       return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
     }
@@ -39,7 +42,8 @@ public class KafkaSource extends BaseConnector implements Source {
 
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
-    KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config);
+    final var stateManager = new KafkaStateManager(null);
+    final KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config, stateManager);
     final List<AirbyteStream> streams = kafkaFormat.getStreams();
     return new AirbyteCatalog().withStreams(streams);
   }
@@ -51,7 +55,8 @@ public class KafkaSource extends BaseConnector implements Source {
     if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
       throw new RuntimeException("Unable establish a connection: " + check.getMessage());
     }
-    KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config);
+    final var stateManager = new KafkaStateManager(state);
+    final KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(config, stateManager);
     return kafkaFormat.read();
   }
 

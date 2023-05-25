@@ -19,12 +19,12 @@ public enum KafkaStrategy {
 
   String className;
 
-  KafkaStrategy(String name) {
+  KafkaStrategy(final String name) {
     this.className = name;
   }
 
-  public static String getStrategyName(String name) {
-    for (KafkaStrategy value : KafkaStrategy.values()) {
+  public static String getStrategyName(final String name) {
+    for (final KafkaStrategy value : KafkaStrategy.values()) {
       if (value.name().equalsIgnoreCase(name)) {
         return value.className;
       }

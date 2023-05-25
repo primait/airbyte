@@ -8,12 +8,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.integrations.source.kafka.format.AvroFormat;
 import io.airbyte.integrations.source.kafka.format.JsonFormat;
 import io.airbyte.integrations.source.kafka.format.KafkaFormat;
+import io.airbyte.integrations.source.kafka.state.KafkaStateManager;
 
 public class KafkaFormatFactory {
 
-  public static KafkaFormat getFormat(final JsonNode config) {
+  public static KafkaFormat getFormat(final JsonNode config, final KafkaStateManager manager) {
 
-    MessageFormat messageFormat =
+    final MessageFormat messageFormat =
         config.has("MessageFormat") ? MessageFormat.valueOf(config.get("MessageFormat").get("deserialization_type").asText().toUpperCase())
             : MessageFormat.JSON;
 
@@ -22,7 +23,7 @@ public class KafkaFormatFactory {
         return new JsonFormat(config);
       }
       case AVRO -> {
-        return new AvroFormat(config);
+        return new AvroFormat(config, manager);
       }
     }
     return new JsonFormat(config);

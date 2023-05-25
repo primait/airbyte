@@ -26,7 +26,7 @@ public abstract class AbstractFormat implements KafkaFormat {
   protected Set<String> topicsToSubscribe;
   protected JsonNode config;
 
-  public AbstractFormat(JsonNode config) {
+  public AbstractFormat(final JsonNode config) {
     this.config = config;
 
   }
@@ -75,7 +75,8 @@ public abstract class AbstractFormat implements KafkaFormat {
         .put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, protocol.toString());
 
     switch (protocol) {
-      case PLAINTEXT -> {}
+      case PLAINTEXT -> {
+      }
       case SASL_SSL, SASL_PLAINTEXT -> {
         builder.put(SaslConfigs.SASL_JAAS_CONFIG, protocolConfig.get("sasl_jaas_config").asText());
         builder.put(SaslConfigs.SASL_MECHANISM, protocolConfig.get("sasl_mechanism").asText());
