@@ -1,11 +1,16 @@
 package io.airbyte.integrations.source.kafka.mediator;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.airbyte.integrations.source.kafka.KafkaConsumerRebalanceListener;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -21,13 +26,13 @@ public class KafkaMediatorImpl<V> implements KafkaMediator<V> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaMediatorImpl.class);
 
-  public KafkaMediatorImpl(KafkaConsumer<String, V> consumer, JsonNode config) {
+  public KafkaMediatorImpl(KafkaConsumer<String, V> consumer, KafkaConsumerRebalanceListener listener, JsonNode config) {
     final JsonNode subscription = config.get("subscription");
     LOGGER.info("Kafka subscribe method: {}", subscription.toString());
     switch (subscription.get("subscription_type").asText()) {
       case "subscribe" -> {
         final String topicPattern = subscription.get("topic_pattern").asText();
-        consumer.subscribe(Pattern.compile(topicPattern));
+        consumer.subscribe(Pattern.compile(topicPattern), listener);
       }
       case "assign" -> {
         final String topicPartitions = subscription.get("topic_partitions").asText();
@@ -38,6 +43,8 @@ public class KafkaMediatorImpl<V> implements KafkaMediator<V> {
         }).collect(Collectors.toList());
         LOGGER.info("Topic-partition list: {}", topicPartitionList);
         consumer.assign(topicPartitionList);
+        topicPartitionList.forEach(partition -> Optional.ofNullable(listener.getInitialPositions().get(partition))
+            .ifPresent(offset -> consumer.seek(partition, offset)));
       }
     }
 
@@ -50,6 +57,13 @@ public class KafkaMediatorImpl<V> implements KafkaMediator<V> {
     List<ConsumerRecord<String, V>> output = new ArrayList<>();
     consumer.poll(Duration.of(this.pollingTimeInMs, ChronoUnit.MILLIS)).forEach(output::add);
     return output;
+  }
+
+  @Override
+  public Map<TopicPartition, Long> position(Set<TopicPartition> partitions) {
+    return partitions.stream()
+        .map(it -> Map.entry(it, consumer.position(it)))
+        .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
   }
 
 }

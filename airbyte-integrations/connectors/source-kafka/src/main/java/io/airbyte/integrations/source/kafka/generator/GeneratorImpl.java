@@ -4,23 +4,23 @@ import com.google.common.collect.AbstractIterator;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.source.kafka.converter.Converter;
-import io.airbyte.integrations.source.kafka.format.AvroFormat;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
+import io.airbyte.integrations.source.kafka.model.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
+import io.airbyte.protocol.models.v0.AirbyteStateMessage;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.kafka.common.TopicPartition;
 
 public class GeneratorImpl<V> implements Generator {
 
   private final KafkaMediator<V> mediator;
   private final Converter<V> converter;
   private final int maxRecords;
-
-  private static final Logger LOGGER = LoggerFactory.getLogger(GeneratorImpl.class);
 
   public GeneratorImpl(KafkaMediator<V> mediator, Converter<V> converter, int maxRecords) {
     this.mediator = mediator;
@@ -34,34 +34,49 @@ public class GeneratorImpl<V> implements Generator {
     return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
 
       private int totalRead = 0;
-
-      final Queue<ConsumerRecord<String, V>> buffer = new LinkedList<>();
+      private final Set<TopicPartition> partitions = new HashSet<>();
+      final Queue<ConsumerRecord<String, V>> pendingKafkaRecords = new LinkedList<>();
+      final Queue<AirbyteStateMessage> pendingStateMessages = new LinkedList<>();
 
       @Override
       protected AirbyteMessage computeNext() {
 
-        // Try to load a new batch if buffer is empty
-        if (buffer.isEmpty()) {
-          // Only load a new batch if we haven't reached max_records
-          if (this.totalRead < GeneratorImpl.this.maxRecords) {
-            List<ConsumerRecord<String, V>> batch;
-            var nrOfRetries = 0;
-            do {
-              batch = mediator.poll();
-              totalRead += batch.size();
-              buffer.addAll(batch);
-            } while (batch.size() == 0 && ++nrOfRetries < 10);
+        // If no pending records
+        //
+        if (this.pendingKafkaRecords.isEmpty()) {
+          // Check if we emit messages from any partition. If we did, prepare state messages; if not, load a new batch
+          //
+          if (this.partitions.isEmpty()) {
+            if (this.totalRead < GeneratorImpl.this.maxRecords) {
+              List<ConsumerRecord<String, V>> batch;
+              var nrOfRetries = 0;
+              do {
+                batch = GeneratorImpl.this.mediator.poll();
+                this.totalRead += batch.size();
+                this.pendingKafkaRecords.addAll(batch);
+              } while (batch.size() == 0 && ++nrOfRetries < 10);
+            } else {
+              return endOfData();
+            }
           } else {
-            return endOfData();
+            var positions = GeneratorImpl.this.mediator.position(this.partitions);
+            this.pendingStateMessages.addAll(StateHelper.toAirbyteState(positions));
+            this.partitions.clear();
           }
         }
 
-        // If it's still empty, no more data to consume
-        if (buffer.isEmpty()) {
+        // Emit any pending state messages first
+        if (!this.pendingStateMessages.isEmpty()) {
+          return new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(this.pendingStateMessages.poll());
+        }
+
+        // If no more pending kafka records, finish
+        if (this.pendingKafkaRecords.isEmpty()) {
           return endOfData();
         } else {
-          var message = buffer.poll();
-          return converter.convertToAirbyteRecord(message.topic(), message.value());
+          var message = this.pendingKafkaRecords.poll();
+          this.partitions.add(new TopicPartition(message.topic(), message.partition()));
+          return GeneratorImpl.this.converter.convertToAirbyteRecord(message.topic(), message.value());
         }
       }
     });

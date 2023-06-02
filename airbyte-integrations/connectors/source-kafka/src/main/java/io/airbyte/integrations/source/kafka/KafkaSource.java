@@ -54,7 +54,7 @@ public class KafkaSource extends BaseConnector implements Source {
       throw new RuntimeException("Unable establish a connection: " + check.getMessage());
     }
 
-    final var generator = GeneratorFactory.forMessageFormat(config);
+    final var generator = GeneratorFactory.forMessageFormat(config, state);
 
     return generator.read();
   }

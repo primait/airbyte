@@ -2,6 +2,7 @@ package io.airbyte.integrations.source.kafka.generator;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.commons.json.Jsons;
+import io.airbyte.integrations.source.kafka.KafkaConsumerRebalanceListener;
 import io.airbyte.integrations.source.kafka.KafkaProtocol;
 import io.airbyte.integrations.source.kafka.KafkaStrategy;
 import io.airbyte.integrations.source.kafka.MessageFormat;
@@ -10,6 +11,7 @@ import io.airbyte.integrations.source.kafka.converter.Converter;
 import io.airbyte.integrations.source.kafka.converter.JsonConverter;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediatorImpl;
+import io.airbyte.integrations.source.kafka.model.StateHelper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClientConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
@@ -28,21 +30,24 @@ import org.apache.kafka.connect.json.JsonDeserializer;
 
 public class GeneratorFactory {
 
-  public static Generator forMessageFormat(JsonNode config) {
+  public static Generator forMessageFormat(JsonNode config, JsonNode state) {
     var messageFormat = Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase());
     var maxRecords = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
+    var positions = StateHelper.stateFromJson(state);
 
     return switch (MessageFormat.valueOf(messageFormat.orElse("JSON"))) {
       case AVRO -> {
         KafkaConsumer<String, GenericRecord> consumer = getAvroKafkaConsumer(config);
-        KafkaMediator<GenericRecord> mediator = new KafkaMediatorImpl<>(consumer, config);
+        KafkaConsumerRebalanceListener listener = new KafkaConsumerRebalanceListener(consumer, positions);
+        KafkaMediator<GenericRecord> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
         Converter<GenericRecord> converter = new AvroConverter();
 
         yield new GeneratorImpl<>(mediator, converter, maxRecords);
       }
       case JSON -> {
         KafkaConsumer<String, JsonNode> consumer = getJsonKafkaConsumer(config);
-        KafkaMediator<JsonNode> mediator = new KafkaMediatorImpl<>(consumer, config);
+        KafkaConsumerRebalanceListener listener = new KafkaConsumerRebalanceListener(consumer, positions);
+        KafkaMediator<JsonNode> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
         Converter<JsonNode> converter = new JsonConverter();
 
         yield new GeneratorImpl<>(mediator, converter, maxRecords);
