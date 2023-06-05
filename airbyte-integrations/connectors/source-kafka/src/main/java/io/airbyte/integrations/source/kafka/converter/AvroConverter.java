@@ -18,6 +18,7 @@ public class AvroConverter implements Converter<GenericRecord> {
     JsonNode output = Jsons.deserialize(value.toString());
 
     // Todo dynamic namespace is not supported now hence, adding avro schema name in the message
+    // NB this is adding a new column to the data, I don't know whether we really want it
     if (StringUtils.isNoneEmpty(namespace) && StringUtils.isNoneEmpty(name)) {
       String newString = String.format("{ \"avro_schema\": \"%s\",\"name\": \"%s\" }", namespace, name);
       ((ObjectNode) output).set("_namespace_", Jsons.deserialize(newString));
