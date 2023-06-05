@@ -11,7 +11,7 @@ import io.airbyte.integrations.source.kafka.converter.Converter;
 import io.airbyte.integrations.source.kafka.converter.JsonConverter;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediatorImpl;
-import io.airbyte.integrations.source.kafka.model.StateHelper;
+import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClientConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;

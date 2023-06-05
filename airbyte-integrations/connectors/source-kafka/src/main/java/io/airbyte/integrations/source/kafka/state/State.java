@@ -1,4 +1,4 @@
-package io.airbyte.integrations.source.kafka.model;
+package io.airbyte.integrations.source.kafka.state;
 
 import java.util.Map;
 

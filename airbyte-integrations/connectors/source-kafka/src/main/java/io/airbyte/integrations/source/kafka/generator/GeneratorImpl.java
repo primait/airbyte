@@ -5,7 +5,7 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.source.kafka.converter.Converter;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
-import io.airbyte.integrations.source.kafka.model.StateHelper;
+import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
 import java.util.HashSet;
 import java.util.LinkedList;
