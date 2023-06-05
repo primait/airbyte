@@ -7,7 +7,6 @@ import io.airbyte.integrations.source.kafka.converter.Converter;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
 import io.airbyte.integrations.source.kafka.model.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
-import io.airbyte.protocol.models.v0.AirbyteStateMessage;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,50 +33,50 @@ public class GeneratorImpl<V> implements Generator {
     return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
 
       private int totalRead = 0;
-      private final Set<TopicPartition> partitions = new HashSet<>();
-      final Queue<ConsumerRecord<String, V>> pendingKafkaRecords = new LinkedList<>();
-      final Queue<AirbyteStateMessage> pendingStateMessages = new LinkedList<>();
+      final Queue<AirbyteMessage> pendingMessages = new LinkedList<>();
 
       @Override
       protected AirbyteMessage computeNext() {
 
-        // If no pending records
-        //
-        if (this.pendingKafkaRecords.isEmpty()) {
-          // Check if we emit messages from any partition. If we did, prepare state messages; if not, load a new batch
-          //
-          if (this.partitions.isEmpty()) {
-            if (this.totalRead < GeneratorImpl.this.maxRecords) {
-              List<ConsumerRecord<String, V>> batch;
-              var nrOfRetries = 0;
-              do {
-                batch = GeneratorImpl.this.mediator.poll();
-                this.totalRead += batch.size();
-                this.pendingKafkaRecords.addAll(batch);
-              } while (batch.size() == 0 && ++nrOfRetries < 10);
-            } else {
-              return endOfData();
+        if (this.pendingMessages.isEmpty()) {
+          if (this.totalRead < GeneratorImpl.this.maxRecords) {
+            List<ConsumerRecord<String, V>> batch = pullBatchFromKafka(10);
+            if (!batch.isEmpty()) {
+              convertToAirbyteMessagesWithState(batch);
             }
           } else {
-            var positions = GeneratorImpl.this.mediator.position(this.partitions);
-            this.pendingStateMessages.addAll(StateHelper.toAirbyteState(positions));
-            this.partitions.clear();
+            return endOfData();
           }
         }
 
-        // Emit any pending state messages first
-        if (!this.pendingStateMessages.isEmpty()) {
-          return new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(this.pendingStateMessages.poll());
-        }
-
-        // If no more pending kafka records, finish
-        if (this.pendingKafkaRecords.isEmpty()) {
+        // If no more pending kafka records, close iterator
+        if (this.pendingMessages.isEmpty()) {
           return endOfData();
         } else {
-          var message = this.pendingKafkaRecords.poll();
-          this.partitions.add(new TopicPartition(message.topic(), message.partition()));
-          return GeneratorImpl.this.converter.convertToAirbyteRecord(message.topic(), message.value());
+          return pendingMessages.poll();
         }
+      }
+
+      private void convertToAirbyteMessagesWithState(List<ConsumerRecord<String, V>> batch) {
+        final Set<TopicPartition> partitions = new HashSet<>();
+        batch.forEach(it -> {
+          partitions.add(new TopicPartition(it.topic(), it.partition()));
+          this.pendingMessages.add(GeneratorImpl.this.converter.convertToAirbyteRecord(it.topic(), it.value()));
+        });
+        var offsets = GeneratorImpl.this.mediator.position(partitions);
+        var stateMessages = StateHelper.toAirbyteState(offsets).stream()
+            .map(it -> new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(it)).toList();
+        this.pendingMessages.addAll(stateMessages);
+      }
+
+      private List<ConsumerRecord<String, V>> pullBatchFromKafka(int maxRetries) {
+        List<ConsumerRecord<String, V>> batch;
+        var nrOfRetries = 0;
+        do {
+          batch = GeneratorImpl.this.mediator.poll();
+          this.totalRead += batch.size();
+        } while (!batch.isEmpty() && ++nrOfRetries < maxRetries);
+        return batch;
       }
     });
   }
