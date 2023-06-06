@@ -37,12 +37,11 @@ public class GeneratorImpl<V> implements Generator {
 
       @Override
       protected AirbyteMessage computeNext() {
-
         if (this.pendingMessages.isEmpty()) {
           if (this.totalRead < GeneratorImpl.this.maxRecords) {
             List<ConsumerRecord<String, V>> batch = pullBatchFromKafka(10);
             if (!batch.isEmpty()) {
-              convertToAirbyteMessagesWithState(batch);
+              this.pendingMessages.addAll(convertToAirbyteMessagesWithState(batch));
             }
           } else {
             return endOfData();
@@ -57,16 +56,15 @@ public class GeneratorImpl<V> implements Generator {
         }
       }
 
-      private void convertToAirbyteMessagesWithState(List<ConsumerRecord<String, V>> batch) {
+      private List<AirbyteMessage> convertToAirbyteMessagesWithState(List<ConsumerRecord<String, V>> batch) {
         final Set<TopicPartition> partitions = new HashSet<>();
         batch.forEach(it -> {
           partitions.add(new TopicPartition(it.topic(), it.partition()));
           this.pendingMessages.add(GeneratorImpl.this.converter.convertToAirbyteRecord(it.topic(), it.value()));
         });
         var offsets = GeneratorImpl.this.mediator.position(partitions);
-        var stateMessages = StateHelper.toAirbyteState(offsets).stream()
+        return StateHelper.toAirbyteState(offsets).stream()
             .map(it -> new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(it)).toList();
-        this.pendingMessages.addAll(stateMessages);
       }
 
       private List<ConsumerRecord<String, V>> pullBatchFromKafka(int maxRetries) {

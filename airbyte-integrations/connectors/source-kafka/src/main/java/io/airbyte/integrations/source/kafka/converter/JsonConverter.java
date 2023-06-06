@@ -15,6 +15,5 @@ public class JsonConverter implements Converter<JsonNode> {
             .withStream(topic)
             .withEmittedAt(Instant.now().toEpochMilli())
             .withData(value));
-
   }
 }

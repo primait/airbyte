@@ -30,6 +30,5 @@ public class AvroConverter implements Converter<GenericRecord> {
             .withStream(topic)
             .withEmittedAt(Instant.now().toEpochMilli())
             .withData(output));
-
   }
 }

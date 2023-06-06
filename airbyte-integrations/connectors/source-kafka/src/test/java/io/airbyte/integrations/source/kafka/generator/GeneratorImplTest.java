@@ -202,6 +202,7 @@ public class GeneratorImplTest {
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
+
     assertTrue(messages.isEmpty());
   }
 
