@@ -33,7 +33,7 @@ public class GeneratorImpl<V> implements Generator {
     return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
 
       private int totalRead = 0;
-      final Queue<AirbyteMessage> pendingMessages = new LinkedList<>();
+      private final Queue<AirbyteMessage> pendingMessages = new LinkedList<>();
 
       @Override
       protected AirbyteMessage computeNext() {
@@ -75,7 +75,7 @@ public class GeneratorImpl<V> implements Generator {
         do {
           batch = GeneratorImpl.this.mediator.poll();
           this.totalRead += batch.size();
-        } while (!batch.isEmpty() && ++nrOfRetries < maxRetries);
+        } while (batch.isEmpty() && ++nrOfRetries < maxRetries);
         return batch;
       }
     });
