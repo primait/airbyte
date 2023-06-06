@@ -4,6 +4,7 @@
 
 package io.airbyte.integrations.source.kafka.format;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
 import io.airbyte.protocol.models.v0.AirbyteStream;
@@ -13,7 +14,7 @@ public interface KafkaFormat {
 
   boolean isAccessible();
 
-  List<AirbyteStream> getStreams();
+  List<AirbyteStream> getStreams(final JsonNode config);
 
   AutoCloseableIterator<AirbyteMessage> read();
 

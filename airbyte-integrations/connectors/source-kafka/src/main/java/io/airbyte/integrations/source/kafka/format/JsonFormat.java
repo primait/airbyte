@@ -94,7 +94,7 @@ public class JsonFormat extends AbstractFormat {
   }
 
   @Override
-  public List<AirbyteStream> getStreams() {
+  public List<AirbyteStream> getStreams(JsonNode config) {
     final Set<String> topicsToSubscribe = getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
         .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
