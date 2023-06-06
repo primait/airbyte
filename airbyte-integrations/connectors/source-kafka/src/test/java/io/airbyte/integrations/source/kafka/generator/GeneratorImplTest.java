@@ -36,7 +36,7 @@ public class GeneratorImplTest {
 
       final String topic = "topic-0";
       final Queue<ConsumerRecord<String, JsonNode>> messages = new LinkedList<>(
-          List.of(new ConsumerRecord<>(topic, 0, 0L, "some-key", Jsons.deserialize("{}")))
+          List.of(new ConsumerRecord<>(topic, 0, 0L, "some-key", Jsons.deserialize("{ \"message\" : 1 }")))
       );
 
       @Override
@@ -55,7 +55,7 @@ public class GeneratorImplTest {
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
-    final var expectedRecord = Jsons.deserialize("{}");
+    final var expectedRecord = Jsons.deserialize("{ \"message\" : 1 }");
 
     assertAll(
         () -> assertEquals(1, messages.size()),
@@ -72,8 +72,8 @@ public class GeneratorImplTest {
       final Queue<List<ConsumerRecord<String, JsonNode>>> messages = new LinkedList<>(
           List.of(
               List.of(
-                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{}")),
-                  new ConsumerRecord<>(this.topic, 1, 5L, "some-key-1", Jsons.deserialize("{}"))
+                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 2 }")),
+                  new ConsumerRecord<>(this.topic, 1, 5L, "some-key-1", Jsons.deserialize("{ \"message\" : 3 }"))
               )
           )
       );
@@ -97,7 +97,8 @@ public class GeneratorImplTest {
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
-    final var expectedRecord = Jsons.deserialize("{}");
+    final var expectedRecord1 = Jsons.deserialize("{ \"message\" : 2 }");
+    final var expectedRecord2 = Jsons.deserialize("{ \"message\" : 3 }");
     final var expectedStateTopic = "topic-0";
     final var expectedStateContent = Jsons.jsonNode(new State(Map.ofEntries(
         Map.entry(0, 0L),
@@ -107,9 +108,9 @@ public class GeneratorImplTest {
     assertAll(
         () -> assertEquals(3, messages.size()),
         () -> assertEquals(AirbyteMessage.Type.RECORD, messages.get(0).getType()),
-        () -> assertEquals(expectedRecord, messages.get(0).getRecord().getData()),
+        () -> assertEquals(expectedRecord1, messages.get(0).getRecord().getData()),
         () -> assertEquals(AirbyteMessage.Type.RECORD, messages.get(1).getType()),
-        () -> assertEquals(expectedRecord, messages.get(1).getRecord().getData()),
+        () -> assertEquals(expectedRecord2, messages.get(1).getRecord().getData()),
         () -> assertEquals(AirbyteMessage.Type.STATE, messages.get(2).getType()),
         () -> assertEquals(AirbyteStateType.STREAM, messages.get(2).getState().getType()),
         () -> assertEquals(expectedStateTopic, messages.get(2).getState().getStream().getStreamDescriptor().getName()),
@@ -126,8 +127,8 @@ public class GeneratorImplTest {
 
       final Queue<List<ConsumerRecord<String, JsonNode>>> messages = new LinkedList<>(
           List.of(
-              List.of(new ConsumerRecord<>(this.topic0, 0, 0L, "some-key-0", Jsons.deserialize("{}"))),
-              List.of(new ConsumerRecord<>(this.topic1, 1, 5L, "some-key-1", Jsons.deserialize("{}")))
+              List.of(new ConsumerRecord<>(this.topic0, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 4 }"))),
+              List.of(new ConsumerRecord<>(this.topic1, 1, 5L, "some-key-1", Jsons.deserialize("{ \"message\" : 5 }")))
           )
       );
       final Queue<Map<TopicPartition, Long>> partitions = new LinkedList<>(
@@ -153,7 +154,8 @@ public class GeneratorImplTest {
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
-    final var expectedRecord = Jsons.deserialize("{}");
+    final var expectedRecord1 = Jsons.deserialize("{ \"message\" : 4 }");
+    final var expectedRecord2 = Jsons.deserialize("{ \"message\" : 5 }");
     final var expectedStateTopic1 = "topic-0";
     final var expectedStateContent1 = Jsons.jsonNode(new State(Map.ofEntries(
         Map.entry(0, 0L)
@@ -166,13 +168,13 @@ public class GeneratorImplTest {
     assertAll(
         () -> assertEquals(4, messages.size()),
         () -> assertEquals(AirbyteMessage.Type.RECORD, messages.get(0).getType()),
-        () -> assertEquals(expectedRecord, messages.get(0).getRecord().getData()),
+        () -> assertEquals(expectedRecord1, messages.get(0).getRecord().getData()),
         () -> assertEquals(AirbyteMessage.Type.STATE, messages.get(1).getType()),
         () -> assertEquals(AirbyteStateType.STREAM, messages.get(1).getState().getType()),
         () -> assertEquals(expectedStateTopic1, messages.get(1).getState().getStream().getStreamDescriptor().getName()),
         () -> assertEquals(expectedStateContent1, messages.get(1).getState().getStream().getStreamState()),
         () -> assertEquals(AirbyteMessage.Type.RECORD, messages.get(2).getType()),
-        () -> assertEquals(expectedRecord, messages.get(2).getRecord().getData()),
+        () -> assertEquals(expectedRecord2, messages.get(2).getRecord().getData()),
         () -> assertEquals(AirbyteMessage.Type.STATE, messages.get(3).getType()),
         () -> assertEquals(AirbyteStateType.STREAM, messages.get(3).getState().getType()),
         () -> assertEquals(expectedStateTopic2, messages.get(3).getState().getStream().getStreamDescriptor().getName()),
@@ -215,7 +217,7 @@ public class GeneratorImplTest {
               List.of(),
               List.of(),
               List.of(
-                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{}"))
+                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 6 }"))
               )
           )
       );
@@ -238,7 +240,7 @@ public class GeneratorImplTest {
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
-    final var expectedRecord = Jsons.deserialize("{}");
+    final var expectedRecord = Jsons.deserialize("{ \"message\" : 6 }");
     final var expectedStateTopic = "topic-0";
     final var expectedStateContent = Jsons.jsonNode(new State(Map.ofEntries(
         Map.entry(0, 0L)
