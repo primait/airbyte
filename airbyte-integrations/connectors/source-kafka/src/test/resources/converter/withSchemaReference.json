@@ -1,0 +1,120 @@
+{
+	"type":"object",
+	"properties":
+		{
+			"amount_per_instalment": {
+			"type": "string"
+		  },
+      "auth_context_uuid":{
+			"type":"string"
+		},
+      "context_introducer":{
+			"type":"string"
+		},
+      "context_introducer_reference":{
+			"type":"string"
+		},
+    "context_tariff_revision" : {
+			"type":"string"
+		},
+      "created_at": {
+			"type":"string",
+			"logicalType":"iso_datetime"
+		},
+      "deposit":{
+			"type":"string",
+			"logicalType":"decimal"
+		},
+      "premium_breakdown":{
+			"type":{
+				"type":"object",
+        "additionalProperties": {
+          "type": "string"
+        }
+			}
+		},
+      "offer_uuid": {
+			"type":"string"
+		},
+      "payment_frequency": {
+			"type":"string"
+		},
+		"policy_cfid": {
+			"type":"string"
+		},
+		"policy_version_uuid":{
+			"type":"string"
+		},
+		"quote_uuid":{
+			"type":"string"
+		},
+      "segments": {
+				"type":"array",
+				"items":[
+          {
+            "type":"object",
+            "name":"PolicySegment",
+            "properties":{
+              "annualized_price":{
+                "type":"string",
+                "logicalType":"decimal"
+              },
+              "cover_type": {
+                "type":"string"
+              },
+              "ends_at": {
+                "type":"string",
+                "logicalType":"iso_datetime"
+              },
+              "items": {
+                  "type":"array",
+                  "items": [
+                    {
+                      "type" : "object",
+                      "name" : "PolicyItem",
+                      "properties" : {
+                        "annualized_price" : {
+                          "type" : "string",
+                          "logicalType" : "decimal"
+                        },
+                        "compulsory_excess" : {
+                          "type" : "string"
+                        },
+                        "coverage" : {
+                          "type" : "string"
+                        },
+                        "level" : {
+                          "type" : "string"
+                        },
+                        "provider" : {
+                          "type" : "string"
+                        },
+                        "type" : {
+                          "type" : "string"
+                        },
+                        "voluntary_excess" : {
+                          "type" : "string"
+                        }
+                      }
+                    }
+                  ]
+              },
+              "price_source" :{
+                "type":"string"
+              },
+              "risk_id": {
+                "type":"string"
+              },
+              "segment_uuid": {
+                "type":"string"
+              },
+              "starts_at": {
+                "type":"string",
+                "logicalType":"iso_datetime"
+              }
+            }
+          }
+        ]
+		}
+	}
+}

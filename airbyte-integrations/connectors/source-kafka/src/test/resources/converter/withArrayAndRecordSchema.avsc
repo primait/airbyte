@@ -1,0 +1,29 @@
+  {
+          "type": "record",
+          "name": "TestObject",
+          "namespace": "ca.dataedu",
+          "fields": [{
+              "name": "array_field",
+              "type": ["null", {
+                  "type": "array",
+                  "items": ["null", {
+                      "type": "record",
+                      "name": "Array_field",
+                      "fields": [{
+                          "name": "id",
+                          "type": ["null", {
+                              "type": "record",
+                              "name": "Id",
+                              "fields": [{
+                                  "name": "id_part_1",
+                                  "type": ["null", "int"],
+                                  "default": null
+                              }]
+                          }],
+                          "default": null
+                      }]
+                  }]
+              }],
+              "default": null
+          }]
+      }

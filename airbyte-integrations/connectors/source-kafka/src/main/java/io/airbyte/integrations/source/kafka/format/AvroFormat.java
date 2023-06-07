@@ -51,13 +51,13 @@ public class AvroFormat extends AbstractFormat {
 
     private KafkaConsumer<String, GenericRecord> consumer;
 
-    public AvroFormat(JsonNode jsonConfig) {
+    public AvroFormat(final JsonNode jsonConfig) {
         super(jsonConfig);
     }
 
     @Override
     protected Map<String, Object> getKafkaConfig() {
-        Map<String, Object> props = super.getKafkaConfig();
+        final Map<String, Object> props = super.getKafkaConfig();
         final JsonNode avro_config = config.get("MessageFormat");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
@@ -67,6 +67,7 @@ public class AvroFormat extends AbstractFormat {
         props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, avro_config.get("schema_registry_url").asText());
         props.put(KafkaAvroSerializerConfig.VALUE_SUBJECT_NAME_STRATEGY,
                 KafkaStrategy.getStrategyName(avro_config.get("deserialization_strategy").asText()));
+        
         return props;
     }
 
@@ -75,7 +76,7 @@ public class AvroFormat extends AbstractFormat {
         if (consumer != null) {
             return consumer;
         }
-        Map<String, Object> filteredProps = getKafkaConfig();
+        final Map<String, Object> filteredProps = getKafkaConfig();
         consumer = new KafkaConsumer<>(filteredProps);
 
         final JsonNode subscription = config.get("subscription");
@@ -131,13 +132,18 @@ public class AvroFormat extends AbstractFormat {
         }
     }
 
+//    List<SchemaProvider> providers = List.of(
+//        new AvroSchemaProvider,
+//        new JsonSchemaProvider
+//    )
+
     @Override
     public List<AirbyteStream> getStreams(final JsonNode config) {
         final JsonNode avroConfig = config.get("MessageFormat");
-        String schemRegistryUrl = avroConfig.get("schema_registry_url").asText();
-        Map<String, Object> properties = Map.of(SchemaRegistryClientConfig.BASIC_AUTH_CREDENTIALS_SOURCE, "USER_INFO",
+        final String schemRegistryUrl = avroConfig.get("schema_registry_url").asText();
+        final Map<String, Object> properties = Map.of(SchemaRegistryClientConfig.BASIC_AUTH_CREDENTIALS_SOURCE, "USER_INFO",
                 SchemaRegistryClientConfig.USER_INFO_CONFIG, String.format("%s:%s", avroConfig.get("schema_registry_username").asText(), avroConfig.get("schema_registry_password").asText()));
-        CachedSchemaRegistryClient schemaRegistryClient = new CachedSchemaRegistryClient(schemRegistryUrl, 1000, List.of(new AvroSchemaProvider()), properties);
+        final CachedSchemaRegistryClient schemaRegistryClient = new CachedSchemaRegistryClient(schemRegistryUrl, 1, List.of(new AvroSchemaProvider()), properties);
         final Set<String> topicsToSubscribe = getTopicsToSubscribe();
         final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic ->
                         CatalogHelpers
@@ -150,12 +156,14 @@ public class AvroFormat extends AbstractFormat {
         return streams;
     }
 
-    private static JsonNode extractSchemaStream(CachedSchemaRegistryClient client, String topic) {
+    private static JsonNode extractSchemaStream(final CachedSchemaRegistryClient client, final String topic) {
         try {
-            SchemaMetadata schema = client.getLatestSchemaMetadata(topic + "-value");
-            Avro2JsonConvert converter = new Avro2JsonConvert();
-            return converter.convertoToAirbyteJson(schema.getSchema());
-        } catch (Exception e) {
+            final SchemaMetadata schema = client.getLatestSchemaMetadata(topic + "-value");
+            final String rawSchema = client.getSchemaById(schema.getId()).rawSchema().toString();
+            final Avro2JsonConvert converter = new Avro2JsonConvert();
+            return converter.convertoToAirbyteJson(rawSchema);
+
+        } catch (final Exception e) {
             LOGGER.error("Errore when extract and convert avro schema" + e.getMessage());
             throw new RuntimeException(e);
         }
@@ -169,7 +177,7 @@ public class AvroFormat extends AbstractFormat {
         final int retry = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
         final int polling_time = config.has("polling_time") ? config.get("polling_time").intValue() : 100;
         final int max_records = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
-        AtomicInteger record_count = new AtomicInteger();
+        final AtomicInteger record_count = new AtomicInteger();
         final Map<String, Integer> poll_lookup = new HashMap<>();
         getTopicsToSubscribe().forEach(topic -> poll_lookup.put(topic, 0));
         while (true) {
@@ -185,7 +193,7 @@ public class AvroFormat extends AbstractFormat {
                         topic -> {
                             poll_lookup.put(topic, poll_lookup.get(topic) + 1);
                         });
-                boolean is_complete = poll_lookup.entrySet().stream().allMatch(
+                final boolean is_complete = poll_lookup.entrySet().stream().allMatch(
                         e -> e.getValue() > retry);
                 if (is_complete) {
                     LOGGER.info("There is no new data in the queue!!");
@@ -204,22 +212,22 @@ public class AvroFormat extends AbstractFormat {
             protected AirbyteMessage computeNext() {
                 if (iterator.hasNext()) {
                     final ConsumerRecord<String, GenericRecord> record = iterator.next();
-                    GenericRecord avro_data = record.value();
-                    ObjectMapper mapper = new ObjectMapper();
-                    String namespace = avro_data.getSchema().getNamespace();
-                    String name = avro_data.getSchema().getName();
-                    JsonNode output;
+                    final GenericRecord avro_data = record.value();
+                    final ObjectMapper mapper = new ObjectMapper();
+                    final String namespace = avro_data.getSchema().getNamespace();
+                    final String name = avro_data.getSchema().getName();
+                    final JsonNode output;
                     try {
                         // Todo dynamic namespace is not supported now hence, adding avro schema name in the message
                         if (StringUtils.isNoneEmpty(namespace) && StringUtils.isNoneEmpty(name)) {
-                            String newString = String.format("{\"avro_schema\": \"%s\",\"name\":\"%s\"}", namespace, name);
-                            JsonNode newNode = mapper.readTree(newString);
+                            final String newString = String.format("{\"avro_schema\": \"%s\",\"name\":\"%s\"}", namespace, name);
+                            final JsonNode newNode = mapper.readTree(newString);
                             output = mapper.readTree(avro_data.toString());
                             ((ObjectNode) output).set("_namespace_", newNode);
                         } else {
                             output = mapper.readTree(avro_data.toString());
                         }
-                    } catch (JsonProcessingException e) {
+                    } catch (final JsonProcessingException e) {
                         LOGGER.error("Exception whilst reading avro data from stream", e);
                         throw new RuntimeException(e);
                     }

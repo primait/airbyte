@@ -1,0 +1,23 @@
+{
+         "type": "object",
+         "properties":{
+           "array_field": {
+             "type": "array",
+             "items": [
+               {  "type":"object",
+                  "properties":{
+                       "id": {
+
+                            "type": "object",
+                             "properties":{
+                               "id_part_1": { "type": "integer" },
+                               "id_part_2": { "type": "string"}
+                           }
+                       },
+                       "message" : {"type": "string"}
+                    }
+               }
+             ]
+           }
+        }
+     }

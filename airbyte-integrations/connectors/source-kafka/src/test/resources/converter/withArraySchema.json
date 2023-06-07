@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "identifier": {
+      "type": "array",
+      "items" :  [
+        {"type":"null"},
+        {"type":"string"}
+      ]
+    }
+  }
+}

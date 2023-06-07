@@ -25,18 +25,16 @@ public class KafkaSourceTest {
   public void testAvroformat() throws IOException {
     final JsonNode configJson = Jsons.deserialize(MoreResources.readResource("test_config.json"));
     final KafkaFormat kafkaFormat = KafkaFormatFactory.getFormat(configJson);
-//    AutoCloseableIterator<AirbyteMessage> message = kafkaFormat.read();
-//    AirbyteMessage mesag = message.next();
     assertInstanceOf(AvroFormat.class, kafkaFormat);
   }
 
-//  @Test
-//  public void testAvroMessage() throws Exception {
-//    final JsonNode configJson = Jsons.deserialize(MoreResources.readResource("test_config.json"));
-//    final Source source = new KafkaSource();
-//    source.discover(configJson);
-//
-//  }
+  @Test
+  public void testAvroMessage() throws Exception {
+    final JsonNode configJson = Jsons.deserialize(MoreResources.readResource("test_config_uk.json"));
+    final Source source = new KafkaSource();
+    source.discover(configJson);
+
+  }
 
 
 

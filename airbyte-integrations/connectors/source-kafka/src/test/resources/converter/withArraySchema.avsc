@@ -1,0 +1,15 @@
+  {
+        "type": "record",
+        "fields": [
+          {
+            "name": "identifier",
+            "type": [
+              null,
+              {
+                "type": "array",
+                "items": ["null", "string"]
+              }
+            ]
+          }
+        ]
+      }

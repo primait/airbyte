@@ -1,0 +1,17 @@
+  {
+          "type": "record",
+          "name": "sampleAvroNested",
+          "namespace": "AVRO",
+          "fields": [
+              {"name": "lastname", "type": "string"},
+              {"name": "address","type": {
+                              "type" : "record",
+                              "name" : "AddressUSRecord",
+                              "fields" : [
+                                  {"name": "streetaddress", "type": ["string", "null"]},
+                                  {"name": "city", "type": "string"}
+                              ]
+                          }
+              }
+          ]
+      }

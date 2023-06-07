@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "address":{
+      "type": "object",
+      "properties": {
+        "city":{
+          "type": "string"
+        },
+        "streetaddress":{
+          "type": "string"
+        }
+      }
+    },
+    "lastname":{
+      "type":"string"
+    }
+  }
+}

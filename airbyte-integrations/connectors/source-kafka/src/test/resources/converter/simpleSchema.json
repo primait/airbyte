@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "address": {"type": "number"},
+    "age": {"type": "integer"},
+    "name": {"type": "string"},
+    "street": {"type": "number"},
+    "valid": {"type": "boolean"}
+  }
+}

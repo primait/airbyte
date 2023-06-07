@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties":{
+    "array_field":{
+      "type":"array",
+      "items":[
+        {
+          "type":"object",
+          "properties":{
+            "id":{
+              "type":"object",
+              "properties":{
+                "id_part_1":{
+                  "type":
+                    "integer"
+                }
+              }
+            }
+          }
+
+        }
+      ]
+    }
+  }
+}

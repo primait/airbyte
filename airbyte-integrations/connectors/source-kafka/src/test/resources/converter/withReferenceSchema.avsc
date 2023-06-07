@@ -1,0 +1,83 @@
+{
+  "fields": [
+    {
+      "name": "amount_per_instalment",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "auth_context_uuid",
+      "type": "string"
+    },
+    {
+      "name": "context_introducer",
+      "type": "string"
+    },
+    {
+      "name": "context_introducer_reference",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "context_tariff_revision",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "logicalType": "iso_datetime",
+      "name": "created_at",
+      "type": "string"
+    },
+    {
+      "logicalType": "decimal",
+      "name": "deposit",
+      "type": "string"
+    },
+    {
+      "name": "premium_breakdown",
+      "type": {
+        "type": "map",
+        "values": {
+          "logicalType": "decimal",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "name": "offer_uuid",
+      "type": "string"
+    },
+    {
+      "name": "payment_frequency",
+      "type": "string"
+    },
+    {
+      "name": "policy_cfid",
+      "type": "string"
+    },
+    {
+      "name": "policy_version_uuid",
+      "type": "string"
+    },
+    {
+      "name": "quote_uuid",
+      "type": "string"
+    },
+    {
+      "name": "segments",
+      "type": {
+        "items": "PolicySegment",
+        "type": "array"
+      }
+    }
+  ],
+  "name": "PolicyCreated",
+  "namespace": "com.prima.uk",
+  "type": "record"
+}

@@ -1,0 +1,12 @@
+{
+  "type":"object",
+  "properties":{
+    "address": {"anyOf": [
+      {"type": "number"},
+      {"type": "string"},
+      {"type": "null"}
+    ]},
+    "name": {"type": "string"},
+    "age": {"type": "integer"}
+  }
+}
