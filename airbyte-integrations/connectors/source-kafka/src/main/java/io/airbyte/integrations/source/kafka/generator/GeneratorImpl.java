@@ -24,11 +24,13 @@ public class GeneratorImpl<V> implements Generator {
   private final KafkaMediator<V> mediator;
   private final Converter<V> converter;
   private final int maxRecords;
+  private final int maxRetries;
 
   public GeneratorImpl(KafkaMediator<V> mediator, Converter<V> converter, int maxRecords, int maxRetries) {
     this.mediator = mediator;
     this.converter = converter;
     this.maxRecords = maxRecords;
+    this.maxRetries = maxRetries;
   }
 
   @Override
@@ -43,7 +45,7 @@ public class GeneratorImpl<V> implements Generator {
       protected AirbyteMessage computeNext() {
         if (this.pendingMessages.isEmpty()) {
           if (this.totalRead < GeneratorImpl.this.maxRecords) {
-            List<ConsumerRecord<String, V>> batch = pullBatchFromKafka(GeneratorImpl.this.maxRecords);
+            List<ConsumerRecord<String, V>> batch = pullBatchFromKafka();
             if (!batch.isEmpty()) {
               this.totalRead += batch.size();
               this.pendingMessages.addAll(convertToAirbyteMessagesWithState(batch));
@@ -75,12 +77,12 @@ public class GeneratorImpl<V> implements Generator {
             .map(it -> new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(it)).toList();
       }
 
-      private List<ConsumerRecord<String, V>> pullBatchFromKafka(int maxRetries) {
+      private List<ConsumerRecord<String, V>> pullBatchFromKafka() {
         List<ConsumerRecord<String, V>> batch;
         var nrOfRetries = 0;
         do {
           batch = GeneratorImpl.this.mediator.poll();
-        } while (batch.isEmpty() && ++nrOfRetries < maxRetries);
+        } while (batch.isEmpty() && ++nrOfRetries < GeneratorImpl.this.maxRetries);
         return batch;
       }
     });
