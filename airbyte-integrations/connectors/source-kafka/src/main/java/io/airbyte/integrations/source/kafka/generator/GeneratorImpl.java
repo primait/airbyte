@@ -11,6 +11,8 @@ import io.airbyte.integrations.source.kafka.converter.Converter;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
 import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
+import io.airbyte.protocol.models.v0.AirbyteStateMessage;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -65,16 +67,27 @@ public class GeneratorImpl<V> implements Generator {
 
       private List<AirbyteMessage> convertToAirbyteMessagesWithState(List<ConsumerRecord<String, V>> batch) {
         final Set<TopicPartition> partitions = new HashSet<>();
-        batch.forEach(it -> {
-          partitions.add(new TopicPartition(it.topic(), it.partition()));
-          this.pendingMessages.add(
+        final List<AirbyteMessage> messages = new ArrayList<>();
+
+        for (ConsumerRecord<String, V> entry : batch) {
+          final var topic = entry.topic();
+          final var partition = entry.partition();
+          final var value = entry.value();
+          partitions.add(new TopicPartition(topic, partition));
+          messages.add(
               new AirbyteMessage()
-                  .withType(AirbyteMessage.Type.RECORD).withRecord(GeneratorImpl.this.converter.convertToAirbyteRecord(it.topic(), it.value()))
+                  .withType(AirbyteMessage.Type.RECORD)
+                  .withRecord(GeneratorImpl.this.converter.convertToAirbyteRecord(topic, value))
           );
-        });
-        var offsets = GeneratorImpl.this.mediator.position(partitions);
-        return StateHelper.toAirbyteState(offsets).stream()
-            .map(it -> new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(it)).toList();
+        }
+
+        final var offsets = GeneratorImpl.this.mediator.position(partitions);
+
+        for (AirbyteStateMessage entry : StateHelper.toAirbyteState(offsets)) {
+          messages.add(new AirbyteMessage().withType(AirbyteMessage.Type.STATE).withState(entry));
+        }
+
+        return messages;
       }
 
       private List<ConsumerRecord<String, V>> pullBatchFromKafka() {
