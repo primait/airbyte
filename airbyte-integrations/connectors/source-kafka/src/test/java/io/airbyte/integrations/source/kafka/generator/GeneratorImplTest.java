@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Test;
 
 public class GeneratorImplTest {
 
+  final int maxMessages = 1000;
+  final int maxRetries = 10;
+
   @Test
   public void testOneBatchNoState() {
     final var mediator = new KafkaMediator<JsonNode>() {
@@ -50,8 +53,7 @@ public class GeneratorImplTest {
       }
     };
     final var converter = new JsonConverter();
-    final var maxMessages = 1000;
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages);
+    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -92,8 +94,7 @@ public class GeneratorImplTest {
       }
     };
     final var converter = new JsonConverter();
-    final var maxMessages = 1000;
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages);
+    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -149,8 +150,7 @@ public class GeneratorImplTest {
       }
     };
     final var converter = new JsonConverter();
-    final var maxMessages = 1000;
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages);
+    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -197,8 +197,7 @@ public class GeneratorImplTest {
       }
     };
     final var converter = new JsonConverter();
-    final var maxMessages = 1000;
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages);
+    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -236,8 +235,7 @@ public class GeneratorImplTest {
       }
     };
     final var converter = new JsonConverter();
-    final var maxMessages = 1000;
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages);
+    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();

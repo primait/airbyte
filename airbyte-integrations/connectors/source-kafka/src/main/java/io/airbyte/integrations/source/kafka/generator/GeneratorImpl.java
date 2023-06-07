@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2023 Airbyte, Inc., all rights reserved.
+ */
+
 package io.airbyte.integrations.source.kafka.generator;
 
 import com.google.common.collect.AbstractIterator;
@@ -21,7 +25,7 @@ public class GeneratorImpl<V> implements Generator {
   private final Converter<V> converter;
   private final int maxRecords;
 
-  public GeneratorImpl(KafkaMediator<V> mediator, Converter<V> converter, int maxRecords) {
+  public GeneratorImpl(KafkaMediator<V> mediator, Converter<V> converter, int maxRecords, int maxRetries) {
     this.mediator = mediator;
     this.converter = converter;
     this.maxRecords = maxRecords;
@@ -39,8 +43,9 @@ public class GeneratorImpl<V> implements Generator {
       protected AirbyteMessage computeNext() {
         if (this.pendingMessages.isEmpty()) {
           if (this.totalRead < GeneratorImpl.this.maxRecords) {
-            List<ConsumerRecord<String, V>> batch = pullBatchFromKafka(10);
+            List<ConsumerRecord<String, V>> batch = pullBatchFromKafka(GeneratorImpl.this.maxRecords);
             if (!batch.isEmpty()) {
+              this.totalRead += batch.size();
               this.pendingMessages.addAll(convertToAirbyteMessagesWithState(batch));
             }
           } else {
@@ -60,7 +65,10 @@ public class GeneratorImpl<V> implements Generator {
         final Set<TopicPartition> partitions = new HashSet<>();
         batch.forEach(it -> {
           partitions.add(new TopicPartition(it.topic(), it.partition()));
-          this.pendingMessages.add(GeneratorImpl.this.converter.convertToAirbyteRecord(it.topic(), it.value()));
+          this.pendingMessages.add(
+              new AirbyteMessage()
+                  .withType(AirbyteMessage.Type.RECORD).withRecord(GeneratorImpl.this.converter.convertToAirbyteRecord(it.topic(), it.value()))
+          );
         });
         var offsets = GeneratorImpl.this.mediator.position(partitions);
         return StateHelper.toAirbyteState(offsets).stream()
@@ -72,7 +80,6 @@ public class GeneratorImpl<V> implements Generator {
         var nrOfRetries = 0;
         do {
           batch = GeneratorImpl.this.mediator.poll();
-          this.totalRead += batch.size();
         } while (batch.isEmpty() && ++nrOfRetries < maxRetries);
         return batch;
       }

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2023 Airbyte, Inc., all rights reserved.
+ */
+
 package io.airbyte.integrations.source.kafka.generator;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,9 +35,10 @@ import org.apache.kafka.connect.json.JsonDeserializer;
 public class GeneratorFactory {
 
   public static Generator forMessageFormat(JsonNode config, JsonNode state) {
-    var messageFormat = Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase());
-    var maxRecords = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
-    var positions = StateHelper.stateFromJson(state);
+    final var messageFormat = Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase());
+    final var maxRecords = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
+    final var maxRetries = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
+    final var positions = StateHelper.stateFromJson(state);
 
     return switch (MessageFormat.valueOf(messageFormat.orElse("JSON"))) {
       case AVRO -> {
@@ -42,7 +47,7 @@ public class GeneratorFactory {
         KafkaMediator<GenericRecord> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
         Converter<GenericRecord> converter = new AvroConverter();
 
-        yield new GeneratorImpl<>(mediator, converter, maxRecords);
+        yield new GeneratorImpl<>(mediator, converter, maxRecords, maxRetries);
       }
       case JSON -> {
         KafkaConsumer<String, JsonNode> consumer = getJsonKafkaConsumer(config);
@@ -50,7 +55,7 @@ public class GeneratorFactory {
         KafkaMediator<JsonNode> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
         Converter<JsonNode> converter = new JsonConverter();
 
-        yield new GeneratorImpl<>(mediator, converter, maxRecords);
+        yield new GeneratorImpl<>(mediator, converter, maxRecords, maxRetries);
       }
     };
   }
