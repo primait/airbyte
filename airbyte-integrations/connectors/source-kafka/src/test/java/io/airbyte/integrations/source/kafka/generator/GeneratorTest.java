@@ -8,12 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.commons.json.Jsons;
-import io.airbyte.integrations.source.kafka.converter.JsonConverter;
+import io.airbyte.integrations.source.kafka.KafkaMessage;
 import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
 import io.airbyte.integrations.source.kafka.state.State;
 import io.airbyte.protocol.models.v0.AirbyteMessage;
+import io.airbyte.protocol.models.v0.AirbyteRecordMessage;
 import io.airbyte.protocol.models.v0.AirbyteStateMessage.AirbyteStateType;
 import java.util.LinkedList;
 import java.util.List;
@@ -24,26 +24,27 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.StreamSupport;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
 
-public class GeneratorImplTest {
+public class GeneratorTest {
 
   final int maxMessages = 1000;
   final int maxRetries = 10;
 
   @Test
   public void testOneBatchNoState() {
-    final var mediator = new KafkaMediator<JsonNode>() {
+    final var mediator = new KafkaMediator() {
 
       final String topic = "topic-0";
-      final Queue<ConsumerRecord<String, JsonNode>> messages = new LinkedList<>(
-          List.of(new ConsumerRecord<>(topic, 0, 0L, "some-key", Jsons.deserialize("{ \"message\" : 1 }")))
+      final Queue<KafkaMessage> messages = new LinkedList<>(
+          List.of(
+              new KafkaMessage(topic, 0, 0, new AirbyteRecordMessage().withStream(topic).withData(Jsons.deserialize("{ \"message\" : 1 }")))
+          )
       );
 
       @Override
-      public List<ConsumerRecord<String, JsonNode>> poll() {
+      public List<KafkaMessage> poll() {
         return Optional.ofNullable(this.messages.poll()).stream().toList();
       }
 
@@ -52,8 +53,11 @@ public class GeneratorImplTest {
         return Map.of();
       }
     };
-    final var converter = new JsonConverter();
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
+    final var generator = Generator.Builder.newInstance()
+        .withMaxRecords(maxMessages)
+        .withMaxRetries(maxRetries)
+        .withMediator(mediator)
+        .build();
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -68,20 +72,22 @@ public class GeneratorImplTest {
 
   @Test
   public void testOneBatchWithState() {
-    final var mediator = new KafkaMediator<JsonNode>() {
+    final var mediator = new KafkaMediator() {
 
       final String topic = "topic-0";
-      final Queue<List<ConsumerRecord<String, JsonNode>>> messages = new LinkedList<>(
+      final Queue<List<KafkaMessage>> messages = new LinkedList<>(
           List.of(
               List.of(
-                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 2 }")),
-                  new ConsumerRecord<>(this.topic, 1, 5L, "some-key-1", Jsons.deserialize("{ \"message\" : 3 }"))
+                  new KafkaMessage(this.topic, 0, 0L,
+                      new AirbyteRecordMessage().withStream(this.topic).withData(Jsons.deserialize("{ \"message\" : 2 }"))),
+                  new KafkaMessage(this.topic, 1, 5L,
+                      new AirbyteRecordMessage().withStream(this.topic).withData(Jsons.deserialize("{ \"message\" : 3 }")))
               )
           )
       );
 
       @Override
-      public List<ConsumerRecord<String, JsonNode>> poll() {
+      public List<KafkaMessage> poll() {
         return Optional.ofNullable(this.messages.poll()).orElse(List.of());
       }
 
@@ -93,8 +99,11 @@ public class GeneratorImplTest {
         );
       }
     };
-    final var converter = new JsonConverter();
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
+    final var generator = Generator.Builder.newInstance()
+        .withMaxRecords(maxMessages)
+        .withMaxRetries(maxRetries)
+        .withMediator(mediator)
+        .build();
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -121,15 +130,21 @@ public class GeneratorImplTest {
 
   @Test
   public void testMultipleBatches() {
-    final var mediator = new KafkaMediator<JsonNode>() {
+    final var mediator = new KafkaMediator() {
 
       final String topic0 = "topic-0";
       final String topic1 = "topic-2";
 
-      final Queue<List<ConsumerRecord<String, JsonNode>>> messages = new LinkedList<>(
+      final Queue<List<KafkaMessage>> messages = new LinkedList<>(
           List.of(
-              List.of(new ConsumerRecord<>(this.topic0, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 4 }"))),
-              List.of(new ConsumerRecord<>(this.topic1, 1, 5L, "some-key-1", Jsons.deserialize("{ \"message\" : 5 }")))
+              List.of(
+                  new KafkaMessage(this.topic0, 0, 0L,
+                      new AirbyteRecordMessage().withStream(this.topic0).withData(Jsons.deserialize("{ \"message\" : 4 }")))
+              ),
+              List.of(
+                  new KafkaMessage(this.topic1, 1, 5L,
+                      new AirbyteRecordMessage().withStream(this.topic1).withData(Jsons.deserialize("{ \"message\" : 5 }")))
+              )
           )
       );
       final Queue<Map<TopicPartition, Long>> partitions = new LinkedList<>(
@@ -140,7 +155,7 @@ public class GeneratorImplTest {
       );
 
       @Override
-      public List<ConsumerRecord<String, JsonNode>> poll() {
+      public List<KafkaMessage> poll() {
         return Optional.ofNullable(this.messages.poll()).orElse(List.of());
       }
 
@@ -149,8 +164,11 @@ public class GeneratorImplTest {
         return Optional.ofNullable(this.partitions.poll()).orElse(Map.of());
       }
     };
-    final var converter = new JsonConverter();
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
+    final var generator = Generator.Builder.newInstance()
+        .withMaxRecords(maxMessages)
+        .withMaxRetries(maxRetries)
+        .withMediator(mediator)
+        .build();
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -184,10 +202,10 @@ public class GeneratorImplTest {
 
   @Test
   public void testRetriesNoData() {
-    final var mediator = new KafkaMediator<JsonNode>() {
+    final var mediator = new KafkaMediator() {
 
       @Override
-      public List<ConsumerRecord<String, JsonNode>> poll() {
+      public List<KafkaMessage> poll() {
         return List.of();
       }
 
@@ -196,8 +214,11 @@ public class GeneratorImplTest {
         return Map.of();
       }
     };
-    final var converter = new JsonConverter();
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
+    final var generator = Generator.Builder.newInstance()
+        .withMaxRecords(maxMessages)
+        .withMaxRetries(maxRetries)
+        .withMediator(mediator)
+        .build();
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -207,23 +228,24 @@ public class GeneratorImplTest {
 
   @Test
   public void testRetriesDataAfterSomeAttempts() {
-    final var mediator = new KafkaMediator<JsonNode>() {
+    final var mediator = new KafkaMediator() {
 
       final String topic = "topic-0";
-      final Queue<List<ConsumerRecord<String, JsonNode>>> messages = new LinkedList<>(
+      final Queue<List<KafkaMessage>> messages = new LinkedList<>(
           List.of(
               List.of(),
               List.of(),
               List.of(),
               List.of(),
               List.of(
-                  new ConsumerRecord<>(this.topic, 0, 0L, "some-key-0", Jsons.deserialize("{ \"message\" : 6 }"))
+                  new KafkaMessage(this.topic, 0, 0L,
+                      new AirbyteRecordMessage().withStream(this.topic).withData(Jsons.deserialize("{ \"message\" : 6 }")))
               )
           )
       );
 
       @Override
-      public List<ConsumerRecord<String, JsonNode>> poll() {
+      public List<KafkaMessage> poll() {
         return Optional.ofNullable(this.messages.poll()).orElse(List.of());
       }
 
@@ -234,8 +256,11 @@ public class GeneratorImplTest {
         );
       }
     };
-    final var converter = new JsonConverter();
-    final var generator = new GeneratorImpl<>(mediator, converter, maxMessages, maxRetries);
+    final var generator = Generator.Builder.newInstance()
+        .withMaxRecords(maxMessages)
+        .withMaxRetries(maxRetries)
+        .withMediator(mediator)
+        .build();
     final var messages = StreamSupport.stream(
         Spliterators.spliteratorUnknownSize(generator.read(), Spliterator.ORDERED), false
     ).toList();
@@ -256,4 +281,3 @@ public class GeneratorImplTest {
     );
   }
 }
-

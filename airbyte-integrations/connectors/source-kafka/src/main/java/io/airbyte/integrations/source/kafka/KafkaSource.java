@@ -9,8 +9,10 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.integrations.source.kafka.config.ConfigHelper;
 import io.airbyte.integrations.source.kafka.format.KafkaFormat;
 import io.airbyte.integrations.source.kafka.generator.GeneratorFactory;
+import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteCatalog;
 import io.airbyte.protocol.models.v0.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.v0.AirbyteConnectionStatus.Status;
@@ -53,8 +55,9 @@ public class KafkaSource extends BaseConnector implements Source {
     if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
       throw new RuntimeException("Unable establish a connection: " + check.getMessage());
     }
-
-    final var generator = GeneratorFactory.forMessageFormat(config, state);
+    final var parsedConfig = ConfigHelper.fromJson(config);
+    final var offsets = StateHelper.stateFromJson(state);
+    final var generator = GeneratorFactory.forMessageFormat(parsedConfig, offsets);
 
     return generator.read();
   }

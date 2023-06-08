@@ -28,10 +28,6 @@ public class KafkaConsumerRebalanceListener implements ConsumerRebalanceListener
     partitions.forEach(partition -> Optional.ofNullable(positions.get(partition)).ifPresent(position -> consumer.seek(partition, position)));
   }
 
-  public Map<TopicPartition, Long> getInitialPositions() {
-    return this.positions;
-  }
-
   private final KafkaConsumer<?, ?> consumer;
   private final Map<TopicPartition, Long> positions;
 }

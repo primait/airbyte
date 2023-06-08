@@ -1,21 +1,10 @@
-/*
- * Copyright (c) 2023 Airbyte, Inc., all rights reserved.
- */
-
-package io.airbyte.integrations.source.kafka.generator;
+package io.airbyte.integrations.source.kafka.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.commons.json.Jsons;
-import io.airbyte.integrations.source.kafka.KafkaConsumerRebalanceListener;
 import io.airbyte.integrations.source.kafka.KafkaProtocol;
 import io.airbyte.integrations.source.kafka.KafkaStrategy;
 import io.airbyte.integrations.source.kafka.MessageFormat;
-import io.airbyte.integrations.source.kafka.converter.AvroConverter;
-import io.airbyte.integrations.source.kafka.converter.Converter;
-import io.airbyte.integrations.source.kafka.converter.JsonConverter;
-import io.airbyte.integrations.source.kafka.mediator.KafkaMediator;
-import io.airbyte.integrations.source.kafka.mediator.KafkaMediatorImpl;
-import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClientConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
@@ -24,65 +13,49 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.json.JsonDeserializer;
 
-public class GeneratorFactory {
+public class ConfigHelper {
 
-  public static Generator forMessageFormat(JsonNode config, JsonNode state) {
-    final var messageFormat = Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase());
+  public static Config fromJson(JsonNode config) {
+    final var messageFormat = MessageFormat.valueOf(
+        Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase()).orElse("JSON")
+    );
     final var maxRecords = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
     final var maxRetries = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
-    final var positions = StateHelper.stateFromJson(state);
-
-    return switch (MessageFormat.valueOf(messageFormat.orElse("JSON"))) {
-      case AVRO -> {
-        KafkaConsumer<String, GenericRecord> consumer = getAvroKafkaConsumer(config);
-        KafkaConsumerRebalanceListener listener = new KafkaConsumerRebalanceListener(consumer, positions);
-        KafkaMediator<GenericRecord> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
-        Converter<GenericRecord> converter = new AvroConverter();
-
-        yield new GeneratorImpl<>(mediator, converter, maxRecords, maxRetries);
-      }
-      case JSON -> {
-        KafkaConsumer<String, JsonNode> consumer = getJsonKafkaConsumer(config);
-        KafkaConsumerRebalanceListener listener = new KafkaConsumerRebalanceListener(consumer, positions);
-        KafkaMediator<JsonNode> mediator = new KafkaMediatorImpl<>(consumer, listener, config);
-        Converter<JsonNode> converter = new JsonConverter();
-
-        yield new GeneratorImpl<>(mediator, converter, maxRecords, maxRetries);
-      }
-    };
+    final var pollingTimeInMs = config.has("polling_time") ? config.get("polling_time").intValue() : 100;
+    return new Config(messageFormat, getJavaConfigByFormat(config, messageFormat), maxRecords, maxRetries, pollingTimeInMs);
   }
 
-  private static KafkaConsumer<String, JsonNode> getJsonKafkaConsumer(JsonNode config) {
+
+  private static Map<String, Object> getJavaConfigByFormat(JsonNode config, MessageFormat format) {
     Map<String, Object> props = getKafkaProperties(config);
 
+    switch (format) {
+      case AVRO -> {
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
+        props.put(SchemaRegistryClientConfig.BASIC_AUTH_CREDENTIALS_SOURCE, "USER_INFO");
+        final JsonNode avroConfig = config.get("MessageFormat");
+        props.put(SchemaRegistryClientConfig.USER_INFO_CONFIG,
+            String.format("%s:%s", avroConfig.get("schema_registry_username").asText(), avroConfig.get("schema_registry_password").asText()));
+        props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, avroConfig.get("schema_registry_url").asText());
+        props.put(KafkaAvroSerializerConfig.VALUE_SUBJECT_NAME_STRATEGY,
+            KafkaStrategy.getStrategyName(avroConfig.get("deserialization_strategy").asText()));
+      }
+      case JSON -> {
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class.getName());
+      }
+    }
     props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class.getName());
 
-    return new KafkaConsumer<>(props);
-  }
-
-  private static KafkaConsumer<String, GenericRecord> getAvroKafkaConsumer(JsonNode config) {
-    final Map<String, Object> props = getKafkaProperties(config);
-
-    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
-    props.put(SchemaRegistryClientConfig.BASIC_AUTH_CREDENTIALS_SOURCE, "USER_INFO");
-    final JsonNode avroConfig = config.get("MessageFormat");
-    props.put(SchemaRegistryClientConfig.USER_INFO_CONFIG,
-        String.format("%s:%s", avroConfig.get("schema_registry_username").asText(), avroConfig.get("schema_registry_password").asText()));
-    props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, avroConfig.get("schema_registry_url").asText());
-    props.put(KafkaAvroSerializerConfig.VALUE_SUBJECT_NAME_STRATEGY,
-        KafkaStrategy.getStrategyName(avroConfig.get("deserialization_strategy").asText()));
-
-    return new KafkaConsumer<>(props);
+    return props;
   }
 
   private static Map<String, Object> getKafkaProperties(JsonNode config) {
@@ -92,7 +65,7 @@ public class GeneratorFactory {
         config.has("group_id") ? config.get("group_id").asText() : null);
     props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
         config.has("max_poll_records") ? config.get("max_poll_records").intValue() : null);
-    props.putAll(propertiesByProtocol(config));
+    props.putAll(getSecurityProtocolConfig(config));
     props.put(ConsumerConfig.CLIENT_ID_CONFIG,
         config.has("client_id") ? config.get("client_id").asText() : null);
     props.put(ConsumerConfig.CLIENT_DNS_LOOKUP_CONFIG, config.get("client_dns_lookup").asText());
@@ -113,7 +86,7 @@ public class GeneratorFactory {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
-  private static Map<String, Object> propertiesByProtocol(final JsonNode config) {
+  private static Map<String, Object> getSecurityProtocolConfig(final JsonNode config) {
     final JsonNode protocolConfig = config.get("protocol");
     final KafkaProtocol protocol = KafkaProtocol.valueOf(protocolConfig.get("security_protocol").asText().toUpperCase());
     final Map<String, Object> props = new HashMap<>();
