@@ -21,18 +21,18 @@ import org.apache.kafka.connect.json.JsonDeserializer;
 
 public class ConfigHelper {
 
-  public static Config fromJson(JsonNode config) {
+  public static SourceConfig fromJson(JsonNode config) {
     final var messageFormat = MessageFormat.valueOf(
         Optional.ofNullable(config.get("MessageFormat")).map(it -> it.get("deserialization_type").asText().toUpperCase()).orElse("JSON")
     );
     final var maxRecords = config.has("max_records_process") ? config.get("max_records_process").intValue() : 100000;
     final var maxRetries = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
     final var pollingTimeInMs = config.has("polling_time") ? config.get("polling_time").intValue() : 100;
-    return new Config(messageFormat, getJavaConfigByFormat(config, messageFormat), maxRecords, maxRetries, pollingTimeInMs);
+    final var kafkaConfig = new KafkaConfig(getKafkaConfigByFormat(config, messageFormat), getKafkaSubscriptionConfig(config));
+    return new SourceConfig(messageFormat, kafkaConfig, maxRecords, maxRetries, pollingTimeInMs);
   }
 
-
-  private static Map<String, Object> getJavaConfigByFormat(JsonNode config, MessageFormat format) {
+  private static Map<String, Object> getKafkaConfigByFormat(JsonNode config, MessageFormat format) {
     Map<String, Object> props = getKafkaProperties(config);
 
     switch (format) {
@@ -84,6 +84,23 @@ public class ConfigHelper {
     return props.entrySet().stream()
         .filter(entry -> entry.getValue() != null && !entry.getValue().toString().isBlank())
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private static Map<String, String> getKafkaSubscriptionConfig(JsonNode config) {
+    final Map<String, String> props = Map.of();
+    final var subscription = config.get("subscription");
+
+    props.put("subscription_type", subscription.get("subscription_type").asText());
+
+    if (subscription.get("topic_pattern") != null) {
+      props.put("topic_pattern", subscription.get("topic_pattern").asText());
+    } 
+
+    if (subscription.get("topic_partitions") != null) {
+      props.put("topic_partitions", subscription.get("topic_partitions").asText());
+    } 
+
+    return props;
   }
 
   private static Map<String, Object> getSecurityProtocolConfig(final JsonNode config) {
