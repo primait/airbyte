@@ -30,9 +30,9 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.json.JsonDeserializer;
 
-public class GeneratorFactory {
+public class GeneratorHelper {
 
-  public static Generator forMessageFormat(Config config, Map<TopicPartition, Long> initialOffsets) {
+  public static Generator buildFrom(Config config, Map<TopicPartition, Long> initialOffsets) {
     return switch (config.format()) {
       case AVRO -> {
         final KafkaConsumer<String, GenericRecord> consumer = new KafkaConsumer<>(config.kafkaConfig());

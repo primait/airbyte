@@ -11,7 +11,7 @@ import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.source.kafka.config.ConfigHelper;
 import io.airbyte.integrations.source.kafka.format.KafkaFormat;
-import io.airbyte.integrations.source.kafka.generator.GeneratorFactory;
+import io.airbyte.integrations.source.kafka.generator.GeneratorHelper;
 import io.airbyte.integrations.source.kafka.state.StateHelper;
 import io.airbyte.protocol.models.v0.AirbyteCatalog;
 import io.airbyte.protocol.models.v0.AirbyteConnectionStatus;
@@ -57,7 +57,7 @@ public class KafkaSource extends BaseConnector implements Source {
     }
     final var parsedConfig = ConfigHelper.fromJson(config);
     final var offsets = StateHelper.stateFromJson(state);
-    final var generator = GeneratorFactory.forMessageFormat(parsedConfig, offsets);
+    final var generator = GeneratorHelper.buildFrom(parsedConfig, offsets);
 
     return generator.read();
   }
