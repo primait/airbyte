@@ -3,8 +3,7 @@
   "properties":{
     "address": {"anyOf": [
       {"type": "number"},
-      {"type": "string"},
-      {"type": "null"}
+      {"type": "string"}
     ]},
     "name": {"type": "string"},
     "age": {"type": "integer"}

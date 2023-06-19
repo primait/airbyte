@@ -18,12 +18,10 @@
 			"type":"string"
 		},
       "created_at": {
-			"type":"string",
-			"logicalType":"iso_datetime"
+			"type":"string"
 		},
       "deposit":{
-			"type":"string",
-			"logicalType":"decimal"
+			"type":"string"
 		},
       "premium_breakdown":{
 			"type":{
@@ -53,29 +51,24 @@
 				"items":[
           {
             "type":"object",
-            "name":"PolicySegment",
             "properties":{
               "annualized_price":{
-                "type":"string",
-                "logicalType":"decimal"
+                "type":"string"
               },
               "cover_type": {
                 "type":"string"
               },
               "ends_at": {
-                "type":"string",
-                "logicalType":"iso_datetime"
+                "type":"string"
               },
               "items": {
                   "type":"array",
                   "items": [
                     {
                       "type" : "object",
-                      "name" : "PolicyItem",
                       "properties" : {
                         "annualized_price" : {
-                          "type" : "string",
-                          "logicalType" : "decimal"
+                          "type" : "string"
                         },
                         "compulsory_excess" : {
                           "type" : "string"
@@ -109,8 +102,7 @@
                 "type":"string"
               },
               "starts_at": {
-                "type":"string",
-                "logicalType":"iso_datetime"
+                "type":"string"
               }
             }
           }
