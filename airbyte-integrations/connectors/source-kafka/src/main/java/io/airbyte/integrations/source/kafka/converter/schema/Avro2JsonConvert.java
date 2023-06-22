@@ -1,4 +1,4 @@
-package io.airbyte.integrations.source.kafka.format;
+package io.airbyte.integrations.source.kafka.converter.schema;
 
 
 import static java.util.Map.entry;
@@ -66,7 +66,7 @@ public class Avro2JsonConvert {
    */
   public JsonNode convertoToAirbyteJson(final String avroSchema) throws Exception {
     LOGGER.info("Starting to convert Avro schema in Json Schema");
-    final JsonNode jsonSchema  = convertoToAirbyteJson( Jsons.deserialize(avroSchema));
+    final JsonNode jsonSchema = convertoToAirbyteJson(Jsons.deserialize(avroSchema));
     return jsonSchema;
   }
 
@@ -83,17 +83,17 @@ public class Avro2JsonConvert {
 
     final ObjectNode node = mapper.createObjectNode();
     JsonNode typeFields = null;
-    final JsonNode type = removeNull(avroSchema.get("type"));
+    final JsonNode typeField = removeNull(avroSchema.get("type"));
 
-    if (type.isObject()) {
-      return convertoToAirbyteJson(type);
-    } else if (type.isValueNode()) {
-      typeFields = type;
-    } else if (type.isArray() && StreamSupport.stream(type.spliterator(), false).allMatch(t -> t.isTextual())) {
+    if (typeField.isObject()) {
+      return convertoToAirbyteJson(typeField);
+    } else if (typeField.isValueNode()) {
+      typeFields = typeField;
+    } else if (typeField.isArray() && StreamSupport.stream(typeField.spliterator(), false).allMatch(t -> t.isTextual())) {
       final ArrayNode array = node.putArray("anyOf");
-      for (final Iterator<JsonNode> it = type.iterator(); it.hasNext(); ) {
-        final JsonNode typeIt = it.next();
-        array.add(mapper.createObjectNode().put("type", avroTypeToJsonType(typeIt.asText())));
+      for (final Iterator<JsonNode> it = typeField.iterator(); it.hasNext(); ) {
+        final JsonNode type = it.next();
+        array.add(mapper.createObjectNode().put("type", avroTypeToJsonType(type.asText())));
       }
       return node;
     }
@@ -103,8 +103,8 @@ public class Avro2JsonConvert {
       return node;
 
     }
-    final String typeT = typeFields.asText();
-    switch (typeT) {
+    final String typeText = typeFields.asText();
+    switch (typeText) {
       case "record" -> {
         node.put("type", "object");
         final ObjectNode properties = mapper.createObjectNode();
@@ -116,15 +116,13 @@ public class Avro2JsonConvert {
         return node;
       }
       case "string", "int", "null", "float", "boolean" -> {
-        return node.put("type", avroTypeToJsonType(typeT));
+        return node.put("type", avroTypeToJsonType(typeText));
       }
       case "map" -> {
         final JsonNode typeObj = mapper.createObjectNode().put("type", "string");
-        final JsonNode typeObj1 = mapper.createObjectNode()
+        return mapper.createObjectNode()
             .put("type", "object")
             .set("additionalProperties", typeObj);
-        node.set("type", typeObj1);
-        return node;
       }
       case "array" -> {
         final ArrayNode array = node.putArray("items");
@@ -144,14 +142,6 @@ public class Avro2JsonConvert {
   }
 
 
-  private static Object removeNull(final List field) throws Exception {
-    final Optional<Object> fieldWithoutNull = field.stream().filter(x -> (x != null) && (!x.equals("null"))).findFirst();
-    if (fieldWithoutNull.isEmpty()) {
-      throw new Exception("Unknown Avro converter:" + field);
-    }
-    return fieldWithoutNull.get();
-  }
-
   /**
    * Remove null or "null" value present in the Type array
    *
@@ -166,7 +156,7 @@ public class Avro2JsonConvert {
     } else if (field.isObject()) {
       array = mapper.createArrayNode().add(field).add(mapper.createObjectNode().textNode("null"));
     } else if (field.isArray()) {
-      array = (ArrayNode) field; //devono essere tutti value node
+      array = (ArrayNode) field;
     }
 
     final List<JsonNode> fieldWithoutNull = StreamSupport.stream(array.spliterator(), false)
@@ -184,6 +174,5 @@ public class Avro2JsonConvert {
       }
     }
   }
-
 
 }

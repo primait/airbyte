@@ -23,13 +23,11 @@
       "deposit":{
 			"type":"string"
 		},
-      "premium_breakdown":{
-			"type":{
-				"type":"object",
-        "additionalProperties": {
-          "type": "string"
-        }
-			}
+    "premium_breakdown":{
+      "type":"object",
+      "additionalProperties": {
+        "type": "string"
+      }
 		},
       "offer_uuid": {
 			"type":"string"

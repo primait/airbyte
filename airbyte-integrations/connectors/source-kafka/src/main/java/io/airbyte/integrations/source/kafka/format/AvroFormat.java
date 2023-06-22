@@ -13,6 +13,7 @@ import com.google.common.collect.Lists;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.source.kafka.KafkaStrategy;
+import io.airbyte.integrations.source.kafka.converter.schema.Avro2JsonConvert;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.v0.AirbyteMessage;

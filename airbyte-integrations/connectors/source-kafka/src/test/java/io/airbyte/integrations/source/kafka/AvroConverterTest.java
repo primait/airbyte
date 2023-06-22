@@ -7,7 +7,7 @@ package io.airbyte.integrations.source.kafka;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.airbyte.integrations.source.kafka.format.Avro2JsonConvert;
+import io.airbyte.integrations.source.kafka.converter.schema.Avro2JsonConvert;
 import io.airbyte.protocol.models.Jsons;
 import java.io.IOException;
 import java.io.InputStream;
